@@ -35,6 +35,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔴 User disconnected:', socket.id);
   });
+
+  // Call Disconnect Sync
+  socket.on('end-call', ({ targetNumber }) => {
+    io.to(targetNumber).emit('call-ended');
+  });
 });
 
 server.listen(3000, () => {
