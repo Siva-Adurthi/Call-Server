@@ -40,13 +40,14 @@ io.on('connection', (socket) => {
   socket.on('end-call', ({ targetNumber }) => {
     io.to(targetNumber).emit('call-ended');
   });
-});
-
-socket.on('send-ai-result', (data) => {
+  socket.on('send-ai-result', (data) => {
     const targetSocketId = users[data.targetNumber]; 
     if (targetSocketId) {
         io.to(targetSocketId).emit('receive-ai-result', data.aiData);
     }
+});
+
+
 });
 
 server.listen(3000, () => {
