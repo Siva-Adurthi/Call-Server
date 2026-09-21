@@ -1,57 +1,92 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
 
 const app = express();
+app.use(cors());
+
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-
-io.on('connection', (socket) => {
-  console.log('🟢 User connected:', socket.id);
-
-  // 1. User Registration
-  socket.on('register', (phoneNumber) => {
-    socket.join(phoneNumber);
-    console.log(`📱 User registered with number: ${phoneNumber} (Socket: ${socket.id})`);
-  });
-
-  // 2. Outgoing Call
-  socket.on('call-user', ({ targetNumber, callerName, offer }) => {
-    console.log(`📞 Call incoming from [${callerName}] to [${targetNumber}]`);
-    io.to(targetNumber).emit('incoming-call', { callerId: socket.id, callerName, offer });
-  });
-
-  // 3. Call Answered
-  socket.on('make-answer', ({ targetId, answer }) => {
-    console.log(`✅ Call Answered. Sending signal back to caller (${targetId})`);
-    io.to(targetId).emit('call-answered', { answer });
-  });
-
-  // 4. ICE Candidates for Audio
-  socket.on('ice-candidate', ({ targetId, candidate }) => {
-    io.to(targetId).emit('ice-candidate', { candidate });
-  });
-
-  socket.on('disconnect', () => {
-    console.log('🔴 User disconnected:', socket.id);
-  });
-
-  // Call Disconnect Sync
-  socket.on('end-call', ({ targetNumber }) => {
-    io.to(targetNumber).emit('call-ended');
-  });
-  socket.on('send-ai-result', (data) => {
-    const targetSocketId = users[data.targetNumber]; 
-    if (targetSocketId) {
-        io.to(targetSocketId).emit('receive-ai-result', data.aiData);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
     }
 });
 
 
+const users = {};
+
+io.on("connection", (socket) => {
+    console.log("✅ A user connected:", socket.id);
+
+   
+    socket.on("register", (phoneNumber) => {
+        users[phoneNumber] = socket.id;
+        console.log(`📱 Registered -> Phone: ${phoneNumber}, Socket ID: ${socket.id}`);
+    });
+
+  
+    socket.on("call-user", (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit("incoming-call", {
+                callerName: data.callerName,
+                offer: data.offer
+            });
+        }
+    });
+
+  
+    socket.on("make-answer", (data) => {
+        const targetSocketId = users[data.targetId];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit("call-answered", {
+                answer: data.answer
+            });
+        }
+    });
+
+
+    socket.on("ice-candidate", (data) => {
+        const targetSocketId = users[data.targetId];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit("ice-candidate", {
+                candidate: data.candidate
+            });
+        }
+    });
+
+
+    socket.on("end-call", (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit("call-ended");
+        }
+    });
+
+    socket.on("send-ai-result", (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            console.log(`📤 Sending AI result to ${data.targetNumber}`);
+            io.to(targetSocketId).emit("receive-ai-result", data.aiData);
+        } else {
+            console.log(`⚠️ Target user ${data.targetNumber} not found for AI result.`);
+        }
+    });
+
+    socket.on("disconnect", () => {
+        for (let phone in users) {
+            if (users[phone] === socket.id) {
+                delete users[phone];
+                console.log(`❌ User disconnected: Phone: ${phone}`);
+                break;
+            }
+        }
+    });
 });
 
-server.listen(3000, () => {
-  console.log('🚀 Signaling Server running on port 3000');
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+    console.log(`🚀 Signaling Server is running on port ${PORT}`);
 });
-
-
