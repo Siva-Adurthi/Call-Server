@@ -42,6 +42,13 @@ io.on('connection', (socket) => {
   });
 });
 
+socket.on('send-ai-result', (data) => {
+    const targetSocketId = users[data.targetNumber]; 
+    if (targetSocketId) {
+        io.to(targetSocketId).emit('receive-ai-result', data.aiData);
+    }
+});
+
 server.listen(3000, () => {
   console.log('🚀 Signaling Server running on port 3000');
 });
