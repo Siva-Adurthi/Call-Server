@@ -85,6 +85,14 @@ io.on("connection", (socket) => {
             }
         }
     });
+    
+    socket.on("call-busy", (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit("call-busy");
+        }
+    });
+
 });
 
 const PORT = process.env.PORT || 5000;
