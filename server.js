@@ -7,7 +7,6 @@ const admin = require("firebase-admin");
 try {
   let serviceAccount;
 
-
   if (process.env.FIREBASE_CREDENTIALS) {
     serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
   } 
@@ -17,7 +16,11 @@ try {
   }
 
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert({
+      projectId: serviceAccount.project_id,
+      clientEmail: serviceAccount.client_email,
+      privateKey: serviceAccount.private_key.replace(/\\n/g, '\n') // కీలోని \n ని సరిచేయడం
+    })
   });
   console.log("🔥 Firebase Admin Initialized Successfully!");
 
@@ -41,11 +44,11 @@ io.on('connection', (socket) => {
         console.log(`User registered: ${number} with socket ID: ${socket.id}`);
     });
 
-
     socket.on("update-fcm-token", (data) => {
         fcmTokens[data.number] = data.token;
         console.log(`🔥 FCM Token Saved for ${data.number}`);
     });
+
 
     socket.on("call-user", (data) => {
         const targetSocketId = users[data.targetNumber];
