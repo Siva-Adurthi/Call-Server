@@ -1,101 +1,123 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+
+const admin = require("firebase-admin");
+
+try {
+  let serviceAccount;
+
+
+  if (process.env.FIREBASE_CREDENTIALS) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+  } 
+
+  else {
+    serviceAccount = require("./serviceAccountKey.json");
+  }
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+  console.log("🔥 Firebase Admin Initialized Successfully!");
+
+} catch (error) {
+  console.error("❌ Firebase Initialization Error:", error);
+}
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
 
+const users = {}; 
 
-app.get("/", (req, res) => {
-    res.send("Voice Shield Signaling Server is Live and Running!");
-});
+const fcmTokens = {}; 
 
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
+io.on('connection', (socket) => {
+    console.log(`User connected: ${socket.id}`);
 
-const users = {};
-
-io.on("connection", (socket) => {
-    console.log("✅ A user connected:", socket.id);
-
-    socket.on("register", (phoneNumber) => {
-        users[phoneNumber] = socket.id;
-        console.log(`📱 Registered -> Phone: ${phoneNumber}, Socket ID: ${socket.id}`);
+    socket.on('register', (number) => {
+        users[number] = socket.id;
+        console.log(`User registered: ${number} with socket ID: ${socket.id}`);
     });
 
+
+    socket.on("update-fcm-token", (data) => {
+        fcmTokens[data.number] = data.token;
+        console.log(`🔥 FCM Token Saved for ${data.number}`);
+    });
 
     socket.on("call-user", (data) => {
         const targetSocketId = users[data.targetNumber];
+        const targetFcmToken = fcmTokens[data.targetNumber];
+
+        if (targetFcmToken) {
+            const message = {
+                data: { type: 'incoming_call', callerName: data.callerName },
+                token: targetFcmToken
+            };
+            admin.messaging().send(message)
+                .then(response => console.log(`✅ FCM Signal Sent to Wake up ${data.targetNumber}!`))
+                .catch(error => console.log('❌ FCM Error:', error));
+        }
+
         if (targetSocketId) {
             io.to(targetSocketId).emit("incoming-call", {
-                callerName: data.callerName,
-                offer: data.offer
+                offer: data.offer,
+                callerName: data.callerName
             });
-        }
-    });
-
-    socket.on("make-answer", (data) => {
-        const targetSocketId = users[data.targetId];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit("call-answered", {
-                answer: data.answer
-            });
-        }
-    });
-
-    socket.on("ice-candidate", (data) => {
-        const targetSocketId = users[data.targetId];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit("ice-candidate", {
-                candidate: data.candidate
-            });
-        }
-    });
-
-
-    socket.on("end-call", (data) => {
-        const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit("call-ended");
-        }
-    });
-
-    
-    socket.on("send-ai-result", (data) => {
-        const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) {
-            console.log(`📤 Sending AI result to ${data.targetNumber}`);
-            io.to(targetSocketId).emit("receive-ai-result", data.aiData);
         } else {
-            console.log(`⚠️ Target user ${data.targetNumber} not found.`);
+            console.log(`User ${data.targetNumber} is offline or app is killed (FCM will wake them up)`);
         }
     });
 
     
-    socket.on("disconnect", () => {
-        for (let phone in users) {
-            if (users[phone] === socket.id) {
-                delete users[phone];
-                console.log(`❌ Disconnected: ${phone}`);
+    socket.on('make-answer', (data) => {
+        const targetSocketId = users[data.targetId];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-answered', { answer: data.answer });
+        }
+    });
+
+    socket.on('ice-candidate', (data) => {
+        const targetSocketId = users[data.targetId];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('ice-candidate', { candidate: data.candidate });
+        }
+    });
+
+    socket.on('send-ai-result', (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('receive-ai-result', data.aiData);
+        }
+    });
+
+    socket.on('call-busy', (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-busy');
+        }
+    });
+
+    socket.on('end-call', (data) => {
+        const targetSocketId = users[data.targetNumber];
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-ended');
+        }
+    });
+
+    socket.on('disconnect', () => {
+        for (let number in users) {
+            if (users[number] === socket.id) {
+                delete users[number];
                 break;
             }
         }
     });
-    
-    socket.on("call-busy", (data) => {
-        const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit("call-busy");
-        }
-    });
-
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
 });
