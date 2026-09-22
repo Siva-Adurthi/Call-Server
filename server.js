@@ -6,12 +6,10 @@ const admin = require("firebase-admin");
 
 try {
   let serviceAccount;
-
+  
   if (process.env.FIREBASE_CREDENTIALS) {
     serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-  } 
-
-  else {
+  } else {
     serviceAccount = require("./serviceAccountKey.json");
   }
 
@@ -19,7 +17,7 @@ try {
     credential: admin.credential.cert({
       projectId: serviceAccount.project_id,
       clientEmail: serviceAccount.client_email,
-      privateKey: serviceAccount.private_key.replace(/\\n/g, '\n') // కీలోని \n ని సరిచేయడం
+      privateKey: serviceAccount.private_key
     })
   });
   console.log("🔥 Firebase Admin Initialized Successfully!");
