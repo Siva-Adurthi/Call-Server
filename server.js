@@ -1,16 +1,22 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const admin = require("firebase-admin");
+
+// 🟢 NEW: లేటెస్ట్ ఫైర్బేస్ మోడ్యులర్ పద్ధతి (ఎర్రర్స్ రావు)
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getMessaging } = require("firebase-admin/messaging");
 
 try {
+  // Render ENV వేరియబుల్స్ నుండి వాల్యూస్ తీసుకోవడం
+  const serviceAccount = {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
+  };
 
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
-    })
+  // 🟢 నేరుగా cert() వాడుతున్నాం (admin.credential తో పనిలేదు)
+  initializeApp({
+    credential: cert(serviceAccount)
   });
   console.log("🔥 Firebase Admin Initialized Successfully!");
 
@@ -47,7 +53,9 @@ io.on('connection', (socket) => {
                 data: { type: 'incoming_call', callerName: data.callerName },
                 token: targetFcmToken
             };
-            admin.messaging().send(message)
+            
+            // 🟢 NEW: గెట్ మెసేజింగ్ () వాడుతున్నాం
+            getMessaging().send(message)
                 .then(response => console.log(`✅ FCM Signal Sent to Wake up ${data.targetNumber}!`))
                 .catch(error => console.log('❌ FCM Error:', error));
         }
