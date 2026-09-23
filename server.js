@@ -1,23 +1,15 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-
 const admin = require("firebase-admin");
 
 try {
-  let serviceAccount;
-  
-  if (process.env.FIREBASE_CREDENTIALS) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-  } else {
-    serviceAccount = require("./serviceAccountKey.json");
-  }
 
   admin.initializeApp({
     credential: admin.credential.cert({
-      projectId: serviceAccount.project_id,
-      clientEmail: serviceAccount.client_email,
-      privateKey: serviceAccount.private_key
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
     })
   });
   console.log("🔥 Firebase Admin Initialized Successfully!");
@@ -31,7 +23,6 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 const users = {}; 
-
 const fcmTokens = {}; 
 
 io.on('connection', (socket) => {
@@ -39,14 +30,13 @@ io.on('connection', (socket) => {
 
     socket.on('register', (number) => {
         users[number] = socket.id;
-        console.log(`User registered: ${number} with socket ID: ${socket.id}`);
+        console.log(`User registered: ${number}`);
     });
 
     socket.on("update-fcm-token", (data) => {
         fcmTokens[data.number] = data.token;
         console.log(`🔥 FCM Token Saved for ${data.number}`);
     });
-
 
     socket.on("call-user", (data) => {
         const targetSocketId = users[data.targetNumber];
@@ -67,45 +57,32 @@ io.on('connection', (socket) => {
                 offer: data.offer,
                 callerName: data.callerName
             });
-        } else {
-            console.log(`User ${data.targetNumber} is offline or app is killed (FCM will wake them up)`);
         }
     });
 
-    
     socket.on('make-answer', (data) => {
         const targetSocketId = users[data.targetId];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-answered', { answer: data.answer });
-        }
+        if (targetSocketId) io.to(targetSocketId).emit('call-answered', { answer: data.answer });
     });
 
     socket.on('ice-candidate', (data) => {
         const targetSocketId = users[data.targetId];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('ice-candidate', { candidate: data.candidate });
-        }
+        if (targetSocketId) io.to(targetSocketId).emit('ice-candidate', { candidate: data.candidate });
     });
 
     socket.on('send-ai-result', (data) => {
         const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('receive-ai-result', data.aiData);
-        }
+        if (targetSocketId) io.to(targetSocketId).emit('receive-ai-result', data.aiData);
     });
 
     socket.on('call-busy', (data) => {
         const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-busy');
-        }
+        if (targetSocketId) io.to(targetSocketId).emit('call-busy');
     });
 
     socket.on('end-call', (data) => {
         const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call-ended');
-        }
+        if (targetSocketId) io.to(targetSocketId).emit('call-ended');
     });
 
     socket.on('disconnect', () => {
