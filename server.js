@@ -2,19 +2,16 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// 🟢 NEW: లేటెస్ట్ ఫైర్బేస్ మోడ్యులర్ పద్ధతి (ఎర్రర్స్ రావు)
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
 
 try {
-  // Render ENV వేరియబుల్స్ నుండి వాల్యూస్ తీసుకోవడం
   const serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
   };
 
-  // 🟢 నేరుగా cert() వాడుతున్నాం (admin.credential తో పనిలేదు)
   initializeApp({
     credential: cert(serviceAccount)
   });
