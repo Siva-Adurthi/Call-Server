@@ -49,6 +49,10 @@ io.on('connection', (socket) => {
 
         if (targetFcmToken) {
             const message = {
+                notification: {
+                    title: 'Incoming Call 📞',
+                    body: `${data.callerName} is calling you...`
+                },
                 data: { type: 'incoming_call', callerName: data.callerName },
                 token: targetFcmToken,
                 android: { priority: 'high' } 
