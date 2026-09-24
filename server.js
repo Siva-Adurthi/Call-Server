@@ -5,15 +5,10 @@ const { initializeApp, cert } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
 
 try {
-  
   let rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY || '';
   rawPrivateKey = rawPrivateKey.trim();
-  if (rawPrivateKey.startsWith('"') && rawPrivateKey.endsWith('"')) {
-    rawPrivateKey = rawPrivateKey.slice(1, -1);
-  }
-  if (rawPrivateKey.startsWith("'") && rawPrivateKey.endsWith("'")) {
-    rawPrivateKey = rawPrivateKey.slice(1, -1);
-  }
+  if (rawPrivateKey.startsWith('"') && rawPrivateKey.endsWith('"')) rawPrivateKey = rawPrivateKey.slice(1, -1);
+  if (rawPrivateKey.startsWith("'") && rawPrivateKey.endsWith("'")) rawPrivateKey = rawPrivateKey.slice(1, -1);
   const formattedPrivateKey = rawPrivateKey.replace(/\\n/g, '\n');
 
   const serviceAccount = {
@@ -22,11 +17,8 @@ try {
     privateKey: formattedPrivateKey
   };
 
-  initializeApp({
-    credential: cert(serviceAccount)
-  });
+  initializeApp({ credential: cert(serviceAccount) });
   console.log("🔥 Firebase Admin Initialized Successfully!");
-
 } catch (error) {
   console.error("❌ Firebase Initialization Error:", error);
 }
@@ -58,19 +50,16 @@ io.on('connection', (socket) => {
         if (targetFcmToken) {
             const message = {
                 data: { type: 'incoming_call', callerName: data.callerName },
-                token: targetFcmToken
+                token: targetFcmToken,
+                android: { priority: 'high' } 
             };
-            
             getMessaging().send(message)
                 .then(response => console.log(`✅ FCM Signal Sent to Wake up ${data.targetNumber}!`))
                 .catch(error => console.log('❌ FCM Error:', error));
         }
 
         if (targetSocketId) {
-            io.to(targetSocketId).emit("incoming-call", {
-                offer: data.offer,
-                callerName: data.callerName
-            });
+            io.to(targetSocketId).emit("incoming-call", { offer: data.offer, callerName: data.callerName });
         }
     });
 
@@ -96,20 +85,16 @@ io.on('connection', (socket) => {
 
     socket.on('end-call', (data) => {
         const targetSocketId = users[data.targetNumber];
-        if (targetSocketId) io.to(targetSocketId).emit('call-ended');
+        let senderNumber = Object.keys(users).find(key => users[key] === socket.id);
+        if (targetSocketId) io.to(targetSocketId).emit('call-ended', { sender: senderNumber });
     });
 
     socket.on('disconnect', () => {
         for (let number in users) {
-            if (users[number] === socket.id) {
-                delete users[number];
-                break;
-            }
+            if (users[number] === socket.id) { delete users[number]; break; }
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
