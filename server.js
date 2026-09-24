@@ -53,7 +53,11 @@ io.on('connection', (socket) => {
                     title: 'Incoming Call 📞',
                     body: `${data.callerName} is calling you...`
                 },
-                data: { type: 'incoming_call', callerName: data.callerName },
+                data: { 
+                    type: 'incoming_call', 
+                    callerName: data.callerName,
+                    offerString: data.offer ? JSON.stringify(data.offer) : ''
+                },
                 token: targetFcmToken,
                 android: { priority: 'high' } 
             };
@@ -89,8 +93,21 @@ io.on('connection', (socket) => {
 
     socket.on('end-call', (data) => {
         const targetSocketId = users[data.targetNumber];
+        const targetFcmToken = fcmTokens[data.targetNumber];
         let senderNumber = Object.keys(users).find(key => users[key] === socket.id);
-        if (targetSocketId) io.to(targetSocketId).emit('call-ended', { sender: senderNumber });
+
+        if (targetFcmToken) {
+            const cancelMessage = {
+                data: { type: 'call_ended' },
+                token: targetFcmToken,
+                android: { priority: 'high' }
+            };
+            getMessaging().send(cancelMessage).catch(e => console.log(e));
+        }
+
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call-ended', { sender: senderNumber });
+        }
     });
 
     socket.on('disconnect', () => {
