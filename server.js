@@ -1,20 +1,27 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-
-// 🟢 NEW: లేటెస్ట్ ఫైర్బేస్ మోడ్యులర్ పద్ధతి (ఎర్రర్స్ రావు)
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
 
 try {
-  // Render ENV వేరియబుల్స్ నుండి వాల్యూస్ తీసుకోవడం
+  
+  let rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+  rawPrivateKey = rawPrivateKey.trim();
+  if (rawPrivateKey.startsWith('"') && rawPrivateKey.endsWith('"')) {
+    rawPrivateKey = rawPrivateKey.slice(1, -1);
+  }
+  if (rawPrivateKey.startsWith("'") && rawPrivateKey.endsWith("'")) {
+    rawPrivateKey = rawPrivateKey.slice(1, -1);
+  }
+  const formattedPrivateKey = rawPrivateKey.replace(/\\n/g, '\n');
+
   const serviceAccount = {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
+    projectId: process.env.FIREBASE_PROJECT_ID ? process.env.FIREBASE_PROJECT_ID.trim() : '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL ? process.env.FIREBASE_CLIENT_EMAIL.trim() : '',
+    privateKey: formattedPrivateKey
   };
 
-  // 🟢 నేరుగా cert() వాడుతున్నాం (admin.credential తో పనిలేదు)
   initializeApp({
     credential: cert(serviceAccount)
   });
@@ -54,7 +61,6 @@ io.on('connection', (socket) => {
                 token: targetFcmToken
             };
             
-            // 🟢 NEW: గెట్ మెసేజింగ్ () వాడుతున్నాం
             getMessaging().send(message)
                 .then(response => console.log(`✅ FCM Signal Sent to Wake up ${data.targetNumber}!`))
                 .catch(error => console.log('❌ FCM Error:', error));
